@@ -90,7 +90,7 @@ class Linear(Module):
     weight: Tensor
 
     def __init__(self, in_features: int, out_features: int, bias: bool = True,
-                 device=None, dtype=None) -> None:
+                 inc_bias_rng_pos: int = 0, device=None, dtype=None) -> None:
         factory_kwargs = {'device': device, 'dtype': dtype}
         super().__init__()
         self.in_features = in_features
@@ -100,6 +100,7 @@ class Linear(Module):
             self.bias = Parameter(torch.empty(out_features, **factory_kwargs))
         else:
             self.register_parameter('bias', None)
+        self.inc_bias_rng_pos = inc_bias_rng_pos
         self.reset_parameters()
 
     def reset_parameters(self) -> None:
@@ -110,6 +111,10 @@ class Linear(Module):
         if self.bias is not None:
             fan_in, _ = init._calculate_fan_in_and_fan_out(self.weight)
             bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
+            # Pushes the rng sequence to the as PPOL's rng sequence after weight update and before bias update
+            # This is for reproducibility and NN with different sized outputs to run identically
+            for _ in range(self.inc_bias_rng_pos):
+                torch.rand(1)
             init.uniform_(self.bias, -bound, bound)
 
     def forward(self, input: Tensor) -> Tensor:
